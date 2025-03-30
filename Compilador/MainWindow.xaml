@@ -1,0 +1,66 @@
+﻿<Window x:Class="Compilador.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Compilador"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="450" Width="800">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <!-- Sección para la entrada de código -->
+        <StackPanel Orientation="Vertical" Grid.Row="0" Margin="10">
+            <TextBlock Text="Ingrese el código fuente:" FontWeight="Bold" />
+            <TextBox Name="txtCodigoFuente"
+                     Height="100"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     VerticalScrollBarVisibility="Auto"/>
+            <Button Name="btnAnalizar"
+                    Content="Analizar"
+                    Click="btnAnalizar_Click"
+                    Margin="0,10,0,0"
+                    Width="100"
+                    HorizontalAlignment="Left"/>
+        </StackPanel>
+        <!-- TabControl para visualizar tokens, errores semánticos y errores sintácticos -->
+        <TabControl Grid.Row="1" Margin="10">
+            <TabItem Header="Tokens">
+                <DataGrid Name="dgTokens" AutoGenerateColumns="False">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Token" Binding="{Binding Tipo}" />
+                        <DataGridTextColumn Header="Valor" Binding="{Binding Valor}" />
+                        <DataGridTextColumn Header="Línea" Binding="{Binding Linea}" />
+                        <DataGridTextColumn Header="Columna" Binding="{Binding Columna}" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+            <TabItem Header="Errores Semánticos">
+                <ListBox Name="lbErroresSemanticos"/>
+            </TabItem>
+            <TabItem Header="Errores Sintácticos">
+                <ListBox Name="lbErroresSintacticos"/>
+            </TabItem>
+            <TabItem Header="Código Optimizado">
+                <ListBox Name="lbCodigoOptimizado"/>
+            </TabItem>
+            <TabItem Header="Código C++">
+                <TextBox Name="txtCodigoCpp"
+             AcceptsReturn="True"
+             TextWrapping="Wrap"
+             VerticalScrollBarVisibility="Auto"
+             HorizontalScrollBarVisibility="Auto"/>
+            </TabItem>
+            <TabItem Header="Resultado C++">
+                <TextBox Name="txtResultadoCpp"
+             AcceptsReturn="True"
+             TextWrapping="Wrap"
+             VerticalScrollBarVisibility="Auto"
+             HorizontalScrollBarVisibility="Auto"/>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</Window>
