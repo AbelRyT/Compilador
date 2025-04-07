@@ -6,6 +6,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Windows;
+using Microsoft.Win32;
+using System.Windows.Controls;
 
 namespace Compilador
 {
@@ -14,17 +16,133 @@ namespace Compilador
     /// </summary>
     public partial class MainWindow : Window
     {
-
+        private string archivoActual = string.Empty;
+        private string proyectoActual = string.Empty;
+        private Dictionary<string, string> archivosProyecto = new();
         public ObservableCollection<string> LexicalTokens { get; set; } = new();
         public ObservableCollection<string> SyntaxErrors { get; set; } = new();
         public ObservableCollection<string> SemanticErrors { get; set; } = new();
         public ObservableCollection<string> SymbolTable { get; set; } = new();
         public string TranslatedCode { get; set; } = string.Empty;
         public string IntermediateCode { get; set; } = string.Empty;
-        
+
         public MainWindow()
         {
             InitializeComponent();
+        }
+
+        private void txtCodigoFuente_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            ActualizarNumerosDeLinea();
+        }
+
+        private void ActualizarNumerosDeLinea()
+        {
+            if (txtCodigoFuente == null) return;
+
+            int totalLineas = txtCodigoFuente.LineCount;
+            StringBuilder lineNumbers = new StringBuilder();
+
+            for (int i = 1; i <= totalLineas; i++)
+            {
+                lineNumbers.AppendLine(i.ToString());
+            }
+
+            LineNumbers.Text = lineNumbers.ToString();
+        }
+
+        private void NuevoProyecto_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new SaveFileDialog
+            {
+                Title = "Selecciona la carpeta para el nuevo proyecto",
+                Filter = "Carpeta|*.folder", // Truco para abrir un diálogo de carpeta.
+                FileName = "Seleccionar_Carpeta"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                proyectoActual = Path.GetDirectoryName(dialog.FileName) ?? string.Empty;
+                archivosProyecto.Clear();
+                ActualizarArbolDeProyecto();
+            }
+        }
+
+        private void AbrirProyecto_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = "Seleccionar Proyecto",
+                Filter = "Archivos CSharp (*.csharp)|*.csharp|Todos los archivos (*.*)|*.*",
+                Multiselect = false
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                proyectoActual = Path.GetDirectoryName(dialog.FileName) ?? string.Empty;
+                archivosProyecto.Clear();
+
+                var archivos = Directory.GetFiles(proyectoActual, "*.csharp", SearchOption.AllDirectories);
+                foreach (var archivo in archivos)
+                {
+                    archivosProyecto[Path.GetFileName(archivo)] = archivo;
+                }
+
+                ActualizarArbolDeProyecto();
+            }
+        }
+
+        private void ActualizarArbolDeProyecto()
+        {
+            ProjectTree.Items.Clear();
+
+            foreach (var archivo in archivosProyecto)
+            {
+                var item = new TreeViewItem { Header = archivo.Key, Tag = archivo.Value };
+                item.Selected += ArchivoSeleccionado;
+                ProjectTree.Items.Add(item);
+            }
+        }
+
+        private void ArchivoSeleccionado(object sender, RoutedEventArgs e)
+        {
+            if (sender is TreeViewItem item && item.Tag is string rutaArchivo)
+            {
+                archivoActual = rutaArchivo;
+                txtCodigoFuente.Text = File.ReadAllText(archivoActual);
+            }
+        }
+
+        private void GuardarArchivo_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(archivoActual))
+            {
+                GuardarComoArchivo_Click(sender, e);
+            }
+            else
+            {
+                File.WriteAllText(archivoActual, txtCodigoFuente.Text);
+            }
+        }
+
+        private void GuardarComoArchivo_Click(object sender, RoutedEventArgs e)
+        {
+            var saveFileDialog = new SaveFileDialog
+            {
+                Filter = "Archivos CSharp (*.csharp)|*.csharp|Todos los archivos (*.*)|*.*"
+            };
+
+            if (saveFileDialog.ShowDialog() == true)
+            {
+                archivoActual = saveFileDialog.FileName;
+                File.WriteAllText(archivoActual, txtCodigoFuente.Text);
+
+                if (!archivosProyecto.ContainsKey(Path.GetFileName(archivoActual)))
+                {
+                    archivosProyecto[Path.GetFileName(archivoActual)] = archivoActual;
+                    ActualizarArbolDeProyecto();
+                }
+            }
         }
 
         private async void btnAnalizar_Click(object sender, RoutedEventArgs e)
@@ -41,36 +159,6 @@ namespace Compilador
                 tokens.Add(token);
             } while (token.Tipo != TokenType.FinArchivo);
             dgTokens.ItemsSource = tokens;
-
-            //// --- Análisis Sintáctico ---
-            //AnalizadorSintactico parser = new AnalizadorSintactico(tokens);
-            //parser.Parse();
-            //lbErroresSintacticos.ItemsSource = parser.Errores;
-
-            //// --- Análisis Semántico ---
-            //// Se procesa cada nodo del AST generado dinámicamente por el parser
-            //AnalizadorSemantico analizadorSemantico = new AnalizadorSemantico();
-            //foreach (var nodo in parser.AST)
-            //{
-            //    nodo.Aceptar(analizadorSemantico);
-            //}
-            //lbErroresSemanticos.ItemsSource = analizadorSemantico.Errores;
-
-            //// --- Generación de Código Intermedio ---
-            //GeneradorCodigoIntermedio generador = new GeneradorCodigoIntermedio();
-            //foreach (var nodo in parser.AST)
-            //{
-            //    nodo.Aceptar(generador);
-            //}
-
-            //// --- Optimización del Código Intermedio ---
-            //OptimizadorCodigoIntermedio optimizador = new OptimizadorCodigoIntermedio();
-            //List<string> codigoOpt = optimizador.Optimizar(generador.CodigoIntermedio);
-            //lbCodigoOptimizado.ItemsSource = codigoOpt;
-
-            //GeneradorCodigoCpp generadorCpp = new GeneradorCodigoCpp();
-            //string codigoCpp = generadorCpp.GenerarCodigoCpp(codigoOpt);
-            //txtCodigoCpp.Text = codigoCpp;
 
             string codigoCSharp = codigoFuente;
             EjecutarCodigo ejecutor = new EjecutarCodigo();

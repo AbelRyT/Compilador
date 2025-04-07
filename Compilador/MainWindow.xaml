@@ -6,26 +6,58 @@
         xmlns:local="clr-namespace:Compilador"
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
+    
+    
     <Grid>
+
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <!-- Sección para la entrada de código -->
-        <StackPanel Orientation="Vertical" Grid.Row="0" Margin="10">
-            <TextBlock Text="Ingrese el código fuente:" FontWeight="Bold" />
-            <TextBox Name="txtCodigoFuente"
-                     Height="100"
-                     AcceptsReturn="True"
-                     TextWrapping="Wrap"
-                     VerticalScrollBarVisibility="Auto"/>
-            <Button Name="btnAnalizar"
-                    Content="Analizar"
-                    Click="btnAnalizar_Click"
-                    Margin="0,10,0,0"
-                    Width="100"
-                    HorizontalAlignment="Left"/>
-        </StackPanel>
+        <DockPanel>
+            <Menu DockPanel.Dock="Top">
+                <MenuItem Header="Archivo">
+                    <MenuItem Header="Nuevo Proyecto" Click="NuevoProyecto_Click"/>
+                    <MenuItem Header="Abrir Proyecto" Click="AbrirProyecto_Click"/>
+                    <MenuItem Header="Guardar" Click="GuardarArchivo_Click"/>
+                    <MenuItem Header="Guardar como..." Click="GuardarComoArchivo_Click"/>
+                </MenuItem>
+            </Menu>
+
+            <Grid Margin="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="250"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Árbol de archivos del proyecto -->
+                <TreeView x:Name="ProjectTree" Grid.Column="0" Margin="0,0,10,0" />
+
+                <Grid Grid.Column="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Editor con numeración de líneas -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="30" />
+                                <!-- Columna para números de línea -->
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock x:Name="LineNumbers" FontFamily="Consolas" FontSize="14" VerticalAlignment="Top" Margin="0,0,5,0"/>
+
+                            <TextBox x:Name="txtCodigoFuente" Grid.Column="1" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="Wrap" FontFamily="Consolas" FontSize="14" TextChanged="txtCodigoFuente_TextChanged"/>
+                        </Grid>
+                    </ScrollViewer>
+
+                    <Button x:Name="btnAnalizar" Content="Analizar" Grid.Row="1" Margin="0,10,0,0" Click="btnAnalizar_Click" />
+                </Grid>
+            </Grid>
+        </DockPanel>
         <!-- TabControl para visualizar tokens, errores semánticos y errores sintácticos -->
         <TabControl Grid.Row="1" Margin="10">
             <TabItem Header="Tokens">
