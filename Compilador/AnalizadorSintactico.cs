@@ -1,4 +1,5 @@
 ﻿using System;
+using System.CodeDom;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -22,79 +23,203 @@ namespace Compilador
             this.tokens = tokens;
             this.currentIndex = 0;
             Errores = new List<string>();
-            AST = new List<Nodo>();
         }
 
-        // Método principal de análisis sintáctico que genera el AST
         public void Parse()
         {
-            while (currentIndex < tokens.Count && tokens[currentIndex].Tipo != TokenType.FinArchivo)
-            {
-                try
-                {
-                    Nodo nodo = ParseStatement();
-                    if (nodo != null)
-                        AST.Add(nodo);
-                }
-                catch (Exception ex)
-                {
-                    Errores.Add("Error sintáctico: " + ex.Message);
-                    // En un parser robusto se implementaría una estrategia de recuperación
-                    break;
-                }
-            }
+            var programa = ParseProgram();
+            AST = new List<Nodo> { programa };
         }
 
-        // Determina qué tipo de sentencia se está analizando y retorna el nodo correspondiente
+        // Método principal: analiza todo el programa
+        private NodoPrograma ParseProgram()
+        {
+            NodoPrograma programa = new NodoPrograma();
+            // Procesa directivas using (se pueden omitir en el análisis posterior)
+            while (Match(TokenType.PalabraReservada, "using"))
+            {
+                // Se descarta la directiva hasta encontrar el delimitador ;
+                while (!Match(TokenType.Delimitador, ";"))
+                {
+                    Advance();
+                }
+                Consume(TokenType.Delimitador, ";");
+            }
+            // Se procesa la declaración de namespace
+            NodoNamespace nodoNamespace = ParseNamespace();
+            programa.Namespace = nodoNamespace;
+            return programa;
+        }
+
+        private NodoNamespace ParseNamespace()
+        {
+            Consume(TokenType.PalabraReservada, "namespace");
+            string nombre = Consume(TokenType.Identificador).Valor;
+            Consume(TokenType.Delimitador, "{");
+            NodoNamespace nodoNamespace = new NodoNamespace();
+            nodoNamespace.Nombre = nombre;
+            nodoNamespace.Clases = new List<NodoClase>();
+
+            while (!Match(TokenType.Delimitador, "}"))
+            {
+                NodoClase clase = ParseClass();
+                if (clase != null)
+                    nodoNamespace.Clases.Add(clase);
+            }
+            Consume(TokenType.Delimitador, "}");
+            return nodoNamespace;
+        }
+
+        private NodoClase ParseClass()
+        {
+            Consume(TokenType.PalabraReservada, "class");
+            string nombreClase = Consume(TokenType.Identificador).Valor;
+            Consume(TokenType.Delimitador, "{");
+            NodoClase nodoClase = new NodoClase();
+            nodoClase.Nombre = nombreClase;
+            nodoClase.Metodos = new List<NodoMetodo>();
+
+            while (!Match(TokenType.Delimitador, "}"))
+            {
+                NodoMetodo metodo = ParseMethod();
+                if (metodo != null)
+                    nodoClase.Metodos.Add(metodo);
+            }
+            Consume(TokenType.Delimitador, "}");
+            return nodoClase;
+        }
+
+        private NodoMetodo ParseMethod()
+        {
+            // Para simplificar se omiten modificadores y parámetros
+            // Se asume que la firma es similar a: static void Main(string[] args)
+            while (!Match(TokenType.Identificador))
+            {
+                Advance();
+            }
+            string nombreMetodo = Consume(TokenType.Identificador).Valor;
+            Consume(TokenType.Delimitador, "(");
+            // Ignorar parámetros (se puede ampliar según necesidad)
+            while (!Match(TokenType.Delimitador, ")"))
+            {
+                Advance();
+            }
+            Consume(TokenType.Delimitador, ")");
+            NodoMetodo nodoMetodo = new NodoMetodo();
+            nodoMetodo.Nombre = nombreMetodo;
+            nodoMetodo.Cuerpo = ParseBlock();
+            return nodoMetodo;
+        }
+
+        private NodoBloque ParseBlock()
+        {
+            Consume(TokenType.Delimitador, "{");
+            NodoBloque bloque = new NodoBloque();
+            bloque.Instrucciones = new List<Nodo>();
+
+            while (!Match(TokenType.Delimitador, "}"))
+            {
+                Nodo instruccion = ParseStatement();
+                if (instruccion != null)
+                    bloque.Instrucciones.Add(instruccion);
+            }
+            Consume(TokenType.Delimitador, "}");
+            return bloque;
+        }
+
         private Nodo ParseStatement()
         {
-            // Si el token actual es una palabra reservada que indica un tipo, asumimos que es una declaración
+            // Sentencia if
+            if (Match(TokenType.PalabraReservada, "if"))
+                return ParseIf();
+
+            // Sentencia for
+            if (Match(TokenType.PalabraReservada, "for"))
+                return ParseFor();
+
+            // Declaración de variable (con inicialización opcional)
             if (IsTipoDeclaracion())
+                return ParseDeclaracionConInicializacion();
+
+            // Asignación o llamada a método
+            if (Match(TokenType.Identificador))
             {
-                return ParseDeclaracion();
+                Token siguiente = LookAhead(1);
+                if (siguiente != null && siguiente.Valor == "=")
+                    return ParseAsignacion();
+                else if (siguiente != null && siguiente.Valor == "(")
+                    return ParseLlamadaMetodo();
             }
-            // Si el token actual es un identificador y el siguiente es "=", es una asignación
-            if (Match(TokenType.Identificador) && LookAhead(1)?.Valor == "=")
-            {
-                return ParseAsignacion();
-            }
-            // Otras sentencias se pueden agregar aquí
+
             throw new Exception("Sentencia no reconocida en el contexto actual.");
         }
 
-        // Verifica si el token actual es un tipo de dato (por ejemplo, "int", "string", etc.)
-        private bool IsTipoDeclaracion()
+        private NodoIf ParseIf()
         {
-            Token token = tokens[currentIndex];
-            return token.Tipo == TokenType.PalabraReservada && (token.Valor == "int" || token.Valor == "string" || token.Valor == "decimal" || token.Valor == "DateTime");
+            Consume(TokenType.PalabraReservada, "if");
+            Consume(TokenType.Delimitador, "(");
+            Nodo condicion = ParseExpresionCompleja();
+            Consume(TokenType.Delimitador, ")");
+            Nodo sentenciaIf = ParseStatement();
+            Nodo sentenciaElse = null;
+            if (Match(TokenType.PalabraReservada, "else"))
+            {
+                Consume(TokenType.PalabraReservada, "else");
+                sentenciaElse = ParseStatement();
+            }
+            NodoIf nodoIf = new NodoIf();
+            nodoIf.Condicion = condicion;
+            nodoIf.SentenciaIf = sentenciaIf;
+            nodoIf.SentenciaElse = sentenciaElse;
+            return nodoIf;
         }
 
-        // Analiza una declaración de variable: por ejemplo, "int x;"
-        private NodoDeclaracion ParseDeclaracion()
+        private NodoFor ParseFor()
         {
-            // Se asume que el primer token es el tipo
+            Consume(TokenType.PalabraReservada, "for");
+            Consume(TokenType.Delimitador, "(");
+            // Se asume que la inicialización es una declaración o asignación
+            Nodo inicializacion = ParseStatement();
+            Nodo condicion = ParseExpresionCompleja();
+            Consume(TokenType.Delimitador, ";");
+            Nodo iteracion = ParseExpresionCompleja();
+            Consume(TokenType.Delimitador, ")");
+            NodoBloque cuerpo = ParseBlock();
+
+            NodoFor nodoFor = new NodoFor();
+            nodoFor.Inicializacion = inicializacion;
+            nodoFor.Condicion = condicion;
+            nodoFor.Iteracion = iteracion;
+            nodoFor.Cuerpo = cuerpo;
+            return nodoFor;
+        }
+
+        // Soporta declaraciones con inicialización, por ejemplo: int resultado = Sumar(5, 3);
+        private Nodo ParseDeclaracionConInicializacion()
+        {
             string tipo = tokens[currentIndex].Valor;
             Consume(TokenType.PalabraReservada); // consume el tipo
-            // Se espera un identificador
-            string identificador = tokens[currentIndex].Valor;
-            Consume(TokenType.Identificador);
-            // Se espera el delimitador ";" al final
+            string identificador = Consume(TokenType.Identificador).Valor;
+            if (Match(TokenType.Operador, "="))
+            {
+                Consume(TokenType.Operador, "=");
+                NodoExpresion expr = (NodoExpresion)ParseExpresionCompleja();
+                Consume(TokenType.Delimitador, ";");
+                // Se utiliza un nodo de asignación para representar la inicialización
+                return new NodoAsignacion { Identificador = identificador, Expresion = expr };
+            }
             Consume(TokenType.Delimitador, ";");
             return new NodoDeclaracion { Tipo = tipo, Identificador = identificador };
         }
 
-        // Analiza una asignación: por ejemplo, "x = \"Hola\";"
-        private NodoAsignacion ParseAsignacion()
+        // Una expresión compleja puede ser una invocación de método o una expresión simple
+        private Nodo ParseExpresionCompleja()
         {
-            string identificador = tokens[currentIndex].Valor;
-            Consume(TokenType.Identificador);
-            Consume(TokenType.Operador, "=");
-            NodoExpresion exp = ParseExpresion();
-            Consume(TokenType.Delimitador, ";");
-            return new NodoAsignacion { Identificador = identificador, Expresion = exp };
+            if (Match(TokenType.Identificador) && LookAhead(1)?.Valor == "(")
+                return ParseLlamadaMetodo();
+            return ParseExpresion();
         }
 
-        // Analiza una expresión simple (en este ejemplo, se asume que es un literal o un identificador)
         private NodoExpresion ParseExpresion()
         {
             Token token = tokens[currentIndex];
@@ -104,17 +229,51 @@ namespace Compilador
             return nodo;
         }
 
-        // Métodos auxiliares de consumo y avance de tokens
+        private NodoAsignacion ParseAsignacion()
+        {
+            string identificador = Consume(TokenType.Identificador).Valor;
+            Consume(TokenType.Operador, "=");
+            NodoExpresion expr = (NodoExpresion)ParseExpresionCompleja();
+            Consume(TokenType.Delimitador, ";");
+            return new NodoAsignacion { Identificador = identificador, Expresion = expr };
+        }
+
+        private NodoLlamadaMetodo ParseLlamadaMetodo()
+        {
+            string nombreMetodo = Consume(TokenType.Identificador).Valor;
+            Consume(TokenType.Delimitador, "(");
+            List<Nodo> argumentos = new List<Nodo>();
+            if (!Match(TokenType.Delimitador, ")"))
+            {
+                argumentos.Add(ParseExpresionCompleja());
+                while (Match(TokenType.Delimitador, ","))
+                {
+                    Consume(TokenType.Delimitador, ",");
+                    argumentos.Add(ParseExpresionCompleja());
+                }
+            }
+            Consume(TokenType.Delimitador, ")");
+            Consume(TokenType.Delimitador, ";");
+            NodoLlamadaMetodo llamada = new NodoLlamadaMetodo();
+            llamada.Nombre = nombreMetodo;
+            llamada.Argumentos = argumentos;
+            return llamada;
+        }
+
+        private bool IsTipoDeclaracion()
+        {
+            Token token = tokens[currentIndex];
+            return token.Tipo == TokenType.PalabraReservada &&
+                   (token.Valor == "int" || token.Valor == "string" ||
+                    token.Valor == "decimal" || token.Valor == "DateTime");
+        }
+
         private Token Consume(TokenType type, string value = null)
         {
             if (Match(type, value))
-            {
                 return Advance();
-            }
             else
-            {
                 throw new Exception($"Se esperaba {type} '{value}' pero se encontró '{tokens[currentIndex].Valor}' en la línea {tokens[currentIndex].Linea}, columna {tokens[currentIndex].Columna}.");
-            }
         }
 
         private bool Match(TokenType type, string value = null)
@@ -134,4 +293,5 @@ namespace Compilador
             return index < tokens.Count ? tokens[index] : null;
         }
     }
+
 }

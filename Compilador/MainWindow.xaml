@@ -38,11 +38,11 @@
                     </DataGrid.Columns>
                 </DataGrid>
             </TabItem>
-            <TabItem Header="Errores Semánticos">
+            <TabItem Header="Errores">
                 <ListBox Name="lbErroresSemanticos"/>
             </TabItem>
-            <TabItem Header="Errores Sintácticos">
-                <ListBox Name="lbErroresSintacticos"/>
+            <TabItem Header="Tabla de simbolos">
+                <ListBox Name="lbTablaSimbolos"/>
             </TabItem>
             <TabItem Header="Código Optimizado">
                 <ListBox Name="lbCodigoOptimizado"/>
